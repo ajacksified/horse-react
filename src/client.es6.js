@@ -35,17 +35,19 @@ class ClientReactApp extends ClientApp {
     };
   }
 
-  render (href, firstLoad, modifyContext) {
-    var mountPoint = this.mountPoint;
+  async render (href, firstLoad, modifyContext) {
+    let mountPoint = this.mountPoint;
 
     if (!mountPoint) {
-      throw('Please define a `mountPoint` on your ClientApp for the react element to render to.');
+      throw new Error(
+        'Please define a `mountPoint` on your ClientApp for the react element to render to.'
+      );
     }
 
-    var ctx = this.buildContext(href);
+    let ctx = this.buildContext(href);
 
     if (modifyContext) {
-      var ctx = modifyContext(ctx);
+      ctx = modifyContext(ctx);
     }
 
     if (firstLoad) {

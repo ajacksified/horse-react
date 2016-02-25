@@ -3,60 +3,58 @@ import ReactDOM from 'react-dom/server';
 import { App } from 'horse';
 
 class ServerReactApp extends App {
-  injectBootstrap (format) {
-    return function * () {
-      this.props.timings = this.timings;
+  async injectBootstrap (ctx, format) {
+    ctx.props.timings = ctx.timings;
 
-      var p = Object.assign({}, this.props);
+    let p = Object.assign({}, ctx.props);
 
-      if (format) {
-        p = format(p);
-      }
-
-      delete p.app;
-      delete p.api;
-      delete p.manifest;
-      p.data = {};
-
-      var bootstrap = ServerReactApp.safeStringify(p);
-
-      var body = this.body;
-      var bodyIndex = body.lastIndexOf('</body>');
-      var template = `<script>var bootstrap=${bootstrap}</script>`;
-      this.body = body.slice(0, bodyIndex) + template + body.slice(bodyIndex);
+    if (format) {
+      p = format(p);
     }
+
+    delete p.app;
+    delete p.api;
+    delete p.manifest;
+    p.data = {};
+
+    let bootstrap = ServerReactApp.safeStringify(p);
+
+    let body = ctx.body;
+    let bodyIndex = body.lastIndexOf('</body>');
+    let template = `<script>let bootstrap=${bootstrap}</script>`;
+    ctx.body = body.slice(0, bodyIndex) + template + body.slice(bodyIndex);
   }
 
-  * render () {
-    if (typeof this.body === 'function') {
-      var Layout = this.layout;
-      var props = this.props;
-      this.type = 'text/html; charset=utf-8';
+  async render (ctx) {
+    if (typeof ctx.body === 'function') {
+      let Layout = ctx.layout;
+      let props = ctx.props;
+      ctx.type = 'text/html; charset=utf-8';
 
       try {
-        if (this.staticMarkup) {
-          var layout = ReactDOM.renderToStaticMarkup(<Layout {...props } />);
-          var body = ReactDOM.renderToString(this.body(props));
+        if (ctx.staticMarkup) {
+          let layout = ReactDOM.renderToStaticMarkup(<Layout {...props } />);
+          let body = ReactDOM.renderToString(ctx.body(props));
 
-          this.body = layout.replace(/!!CONTENT!!/, body);
+          ctx.body = layout.replace(/!!CONTENT!!/, body);
         } else {
-          this.body = ReactDOM.renderToStaticMarkup(
+          ctx.body = ReactDOM.renderToStaticMarkup(
             <Layout {...props}>
-              {this.body(props)}
+              { ctx.body(props) }
             </Layout>
           );
         }
       } catch (e) {
-        this.props.app.error(e, this, this.props.app);
-        yield this.props.app.render;
+        ctx.props.app.error(e, ctx, ctx.props.app);
+        await ctx.props.app.render(ctx);
       }
     }
   }
 
-  * loadData() {
-    // this.props.data is a map; pass in its keys as an array of promises
-    if (this.props.data) {
-      return Promise.all([...this.props.data.values()]);
+  async loadData(ctx) {
+    // ctx.props.data is a map; pass in its keys as an array of promises
+    if (ctx.props.data) {
+      return Promise.all([...ctx.props.data.values()]);
     } else {
       return Promise.resolve();
     }
@@ -70,42 +68,42 @@ class ServerReactApp extends App {
   }
 
   static serverRender (app, formatProps) {
-    return function * () {
-      this.timings = {};
+    return async function (ctx) {
+      ctx.timings = {};
 
-      if (this.accepts('html')) {
-        var routeStart = Date.now();
-        yield app.route(this);
-        this.timings.route = Date.now() - routeStart;
+      if (ctx.accepts('html')) {
+        let routeStart = Date.now();
+        await app.route(ctx);
+        ctx.timings.route = Date.now() - routeStart;
       }
 
-      if (typeof this.body === 'function') {
+      if (typeof ctx.body === 'function') {
         // Load all the data required for the request before the server renders
-        var data;
-        this.props = this.props || {};
+        let data;
+        ctx.props = ctx.props || {};
 
         try {
-          var dataStart = Date.now();
-          data = yield app.loadData;
-          this.timings.data = Date.now() - dataStart;
+          let dataStart = Date.now();
+          data = await app.loadData(ctx);
+          ctx.timings.data = Date.now() - dataStart;
         } catch (e) {
-          app.error(e, this, app);
+          app.error(e, ctx, app);
         }
 
-        this.props.dataCache = {};
+        ctx.props.dataCache = {};
 
         if (data) {
           // The entries are in the same order as when we fired off the promises;
           // load the data from the response array.
-          var i = 0;
-          for (var [key, value] of this.props.data.entries()) {
-            this.props.dataCache[key] = data[i];
+          let i = 0;
+          for (let [key] of ctx.props.data.entries()) {
+            ctx.props.dataCache[key] = data[i];
             i++;
           }
         }
 
-        if (this.preServerRender) {
-          const preServerRender = this.preServerRender(this);
+        if (ctx.preServerRender) {
+          const preServerRender = ctx.preServerRender(ctx);
 
           // If you explicitly return `false`, don't continue the render.
           if (preServerRender === false) {
@@ -113,17 +111,17 @@ class ServerReactApp extends App {
           }
         }
 
-        var renderStart = Date.now();
-        yield app.render;
-        this.timings.render = Date.now() - renderStart;
+        let renderStart = Date.now();
+        await app.render(ctx);
+        ctx.timings.render = Date.now() - renderStart;
 
         if (formatProps) {
-          this.props = formatProps(this.props);
+          ctx.props = formatProps(ctx.props);
         }
 
-        yield app.injectBootstrap(app.config.formatBootstrap);
+        await app.injectBootstrap(ctx, app.config.formatBootstrap);
       }
-    }
+    };
   }
 }
 
