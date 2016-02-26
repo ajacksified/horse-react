@@ -30,6 +30,8 @@ class ClientReactApp extends ClientApp {
     // `this` binding, how does it work
     return {
       ...request,
+      request,
+      req: request,
       redirect: this.redirect,
       error: this.error,
     };
@@ -54,18 +56,16 @@ class ClientReactApp extends ClientApp {
       ctx.props = this.getState();
     }
 
-    return new Promise((resolve) => {
-      this.route(ctx).then(() => {
-        if (ctx.body && typeof ctx.body === 'function') {
-          try {
-            this.emitter.once('page:update', resolve);
-            React.render(ctx.body(ctx.props), mountPoint);
-          } catch (e) {
-            this.error(e, ctx, this);
-          }
-        }
-      });
-    });
+    await this.route(ctx);
+
+    try {
+      React.render(ctx.body, mountPoint);
+    } catch (e) {
+      console.log(e);
+      //this.error(e, ctx, this);
+    }
+
+    return Promise.resolve(ctx);
   }
 }
 
