@@ -4,24 +4,22 @@ import { App } from 'horse';
 
 class ServerReactApp extends App {
   async injectBootstrap (ctx, format) {
-    ctx.props.timings = ctx.timings;
-
-    let p = Object.assign({}, ctx.props);
+    let p = { ...ctx.props };
 
     if (format) {
-      p = format(p);
+      p = format({...ctx.props});
     }
 
     delete p.app;
     delete p.api;
     delete p.manifest;
-    p.data = {};
+    delete p.dataPromises;
 
-    let bootstrap = ServerReactApp.safeStringify(p);
+    const bootstrap = ServerReactApp.safeStringify(p);
 
-    let body = ctx.body;
-    let bodyIndex = body.lastIndexOf('</body>');
-    let template = `<script>let bootstrap=${bootstrap}</script>`;
+    const body = ctx.body;
+    const bodyIndex = body.lastIndexOf('</body>');
+    const template = `<script>window.bootstrap=${bootstrap}</script>`;
     ctx.body = body.slice(0, bodyIndex) + template + body.slice(bodyIndex);
   }
 
@@ -61,7 +59,8 @@ class ServerReactApp extends App {
       await app.render(ctx);
       ctx.timings.render = Date.now() - renderStart;
 
-      //await app.injectBootstrap(ctx, app.config.formatBootstrap);
+      console.log(app.config.formatBootstrap);
+      await app.injectBootstrap(ctx, app.config.formatBootstrap);
     };
   }
 }
